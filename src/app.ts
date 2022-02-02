@@ -3,84 +3,110 @@ import express, { Application, Request, Response } from 'express'
 import { Webhook } from './models/webhook'
 import { Payload } from './models/payload'
 import axios, { AxiosResponse } from 'axios'
+import {DB} from './db/db'
+import { CODE_200, CODE_400, CODE_404, CODE_500, NO_WEBHOOKS, ValidationError } from './models/errors'
 
-const app: Application = express()
-app.use(bodyParser.urlencoded({ extended: false }))
-app.use(bodyParser.json())
+export class WebhooksApp {
+    db: DB
+    app: Application
 
-const PORT = 9876
-const TEST_PORT = 3005
-const CODE_200 = 200
-const CODE_404 = 404
-const CODE_500 = 500
-
-const webhooks: Webhook[] = []
-
-app.post('/api/webhooks', (req: Request, res: Response) => {
-    try {
-        const { url, token } = req.body
-        const webhook = new Webhook(url, token)
-        webhooks.push(webhook)
-        res.json({ webhook: webhook })
-    } catch (error) {
-        handleError(error, res)
+    constructor(db: DB){
+        this.db = db
+        this.app = express()
+        this.setupMiddleware()
+        this.setupRequestEndpoints()
     }
-})
 
-app.post('/api/webhooks/test', async (req: Request, res: Response) => {
-    try {
-        const payload = new Payload(req.body.payload)
-        const errors: string[] = []
-        for (const webhook of webhooks) {
-            const response: AxiosResponse = await makeWebkookRequest(
-                webhook,
-                payload.payload
-            )
-            console.log(`Status Code: ${response.status}`)
-
-            if (response.status !== CODE_200) {
-                errors.push(
-                    `Error making POST request to ${webhook.url}: ${response.statusText}`
-                )
+    setupMiddleware() {
+        this.app.use(bodyParser.urlencoded({ extended: false }))
+        this.app.use(bodyParser.json())
+    }
+    
+    setupRequestEndpoints() {
+        this.app.post('/api/webhooks', async (req: Request, res: Response) => {
+            try {
+                const { url, token } = req.body
+                const webhook = new Webhook(url, token)
+                const createdWebhook : Webhook = await this.db.addWebhook(webhook)
+                res.json({ messages: [`Success creating webhook with url: ${createdWebhook.url} and token: ${createdWebhook.token}`] })
+            } catch (error) {
+                this.handleError(error, res)
             }
+        })
+        
+        this.app.post('/api/webhooks/test', async (req: Request, res: Response) => {
+            try {
+                const payload = new Payload(req.body.payload)
+                const errors: string[] = []
+                const messages: string[] = []
+                const promises: Promise<AxiosResponse>[] = []
+                const webhooks: Webhook[] = await this.db.getWebhooks()
+
+                if (webhooks.length === 0) {
+                    res.json({messages: [NO_WEBHOOKS]})
+                }
+                for (const webhook of webhooks) {
+                    const promise: Promise<AxiosResponse> = this.makeWebkookRequest(
+                        webhook,
+                        payload.payload
+                    ).then((response) => {
+                        if (response.status !== CODE_200) {
+                            errors.push(`Error posting to ${webhook.url}, ${response.statusText}`)
+                        } else {
+                            messages.push(`Success posting to ${webhook.url}`)
+                        }
+                        return response
+                    }).catch((error)=> {
+                        errors.push(`Error posting to ${webhook.url}, ${error}`)
+                        return error
+                    })
+
+                    promises.push(promise)
+                }
+                await Promise.all(promises)
+                this.handleTestErrors(res, errors, messages)
+            } catch (error) {
+                this.handleError(error, res)
+            }
+        })
+    }
+    
+    startServer(port: number) {
+        this.app.listen(port, () => console.log(`Server started listening on port ${port}`))
+    }
+
+    async makeWebkookRequest(
+        webhook: Webhook,
+        payload: any
+    ): Promise<AxiosResponse> {
+        const data = {
+            token: webhook.token,
+            payload: payload,
         }
+        return axios.post(webhook.url, data)
+    }
+    
+    handleError(error: Error, res: Response) {
+        if (error instanceof ValidationError) {
+            res.status(CODE_400).json({ errors: [error.message] })
+        }
+        else{
+            res.status(CODE_500).json({ errors: [error.message] })
+        }
+    }
+
+    handleTestErrors(res: Response, errors: string[], messages: string[]) {
         if (errors.length === 0) {
-            res.send('Sucessfully sent POST request to all webhooks')
+            res.json({messages: messages})
+        } else if (messages.length === 0) {
+            res.status(CODE_404).json({ errors: errors})
         } else {
-            res.status(CODE_404).json({ errors: errors })
+            res.status(CODE_404).json({ errors: errors, messages: messages})
         }
-    } catch (error) {
-        handleError(error, res)
     }
-})
 
-app.listen(PORT, () => console.log(`Server started listening on port ${PORT}`))
-
-const makeWebkookRequest = async (
-    webhook: Webhook,
-    payload: any
-): Promise<AxiosResponse> => {
-    const data = {
-        token: webhook.token,
-        payload: payload,
-    }
-    return axios.post(webhook.url, data)
 }
 
-function handleError(error: Error, res: Response) {
-    res.status(CODE_500).json({ errors: [error.message] })
+export const createApp = (db: DB) : WebhooksApp => {
+    return new WebhooksApp(db)
 }
-
-// FOR TESTING PURPOSES
-
-const test_app: Application = express()
-test_app.use(bodyParser.urlencoded({ extended: false }))
-test_app.use(bodyParser.json())
-
-test_app.post('/test/', (req: Request, res: Response) => {
-    console.log(`Received test POST request: ${req.body}`)
-    res.json(req.body)
-})
-test_app.listen(TEST_PORT, () =>
-    console.log(`Test server started listening on port ${TEST_PORT}`)
-)

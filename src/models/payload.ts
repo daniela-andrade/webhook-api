@@ -1,3 +1,5 @@
+import { PAYLOAD_IS_REQUIRED, ValidationError } from './errors'
+
 export class Payload {
     payload: any
     constructor(payload: any) {
@@ -6,14 +8,8 @@ export class Payload {
     }
     validate(payload: any): void {
         if (payload === undefined || payload === null) {
-            throw new ValidationError('Payload is required')
+            throw new ValidationError(PAYLOAD_IS_REQUIRED)
         }
     }
 }
 
-export class ValidationError extends Error {
-    constructor(message: string) {
-        super(message)
-        this.name = 'ValidationError'
-    }
-}
