@@ -1,4 +1,4 @@
-import { TOKEN_IS_EMPTY, TOKEN_IS_REQUIRED, URL_FORMAT_IS_INVALID, URL_IS_EMPTY, URL_IS_REQUIRED, ValidationError } from './errors'
+import { ValidationError } from './errors'
 
 export class Webhook {
     url: string
@@ -13,23 +13,23 @@ export class Webhook {
 
     validateUrl(url: string) {
         if (url === undefined || url === null) {
-            throw new ValidationError(URL_IS_REQUIRED)
+            throw new ValidationError('URL is required')
         }
         if (url.length === 0) {
-            throw new ValidationError(URL_IS_EMPTY)
+            throw new ValidationError('URL cannot be empty')
         }
         try {
             new URL(url)
         } catch (_) {
-            throw new ValidationError(URL_FORMAT_IS_INVALID)
+            throw new ValidationError('URL format is invalid')
         }
     }
     validateToken(token: string) {
         if (token === undefined || token === null) {
-            throw new ValidationError(TOKEN_IS_REQUIRED)
+            throw new ValidationError('Token is required')
         }
         if (token.length === 0) {
-            throw new ValidationError(TOKEN_IS_EMPTY)
+            throw new ValidationError('Token cannot be empty')
         }
     }
 }

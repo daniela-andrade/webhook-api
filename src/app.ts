@@ -4,7 +4,7 @@ import { Webhook } from './models/webhook'
 import { Payload } from './models/payload'
 import axios, { AxiosResponse } from 'axios'
 import {DB} from './db/db'
-import { CODE_200, CODE_400, CODE_404, CODE_500, NO_WEBHOOKS, ValidationError } from './models/errors'
+import { CODE_200, CODE_400, CODE_500, Result, APIResponse, ValidationError } from './models/errors'
 
 export class WebhooksApp {
     db: DB
@@ -28,51 +28,68 @@ export class WebhooksApp {
                 const { url, token } = req.body
                 const webhook = new Webhook(url, token)
                 const createdWebhook : Webhook = await this.db.addWebhook(webhook)
-                res.json({ messages: [`Success creating webhook with url: ${createdWebhook.url} and token: ${createdWebhook.token}`] })
+                const result: Result = this.createResult(
+                    createdWebhook.url, 
+                    CODE_200,
+                    'Success creating webhook')
+                this.handleResponse(CODE_200, [result], null, res)
             } catch (error) {
-                this.handleError(error, res)
+                const code = error instanceof ValidationError ? CODE_400 : CODE_500
+                const result: Result = this.createResult(req.body.url, code, error.message)
+                this.handleResponse(code, null, [result], res)
             }
         })
         
         this.app.post('/api/webhooks/test', async (req: Request, res: Response) => {
+            const errors: Result[] = []
+            const results: Result[] = []
             try {
                 const payload = new Payload(req.body.payload)
-                const errors: string[] = []
-                const messages: string[] = []
                 const promises: Promise<AxiosResponse>[] = []
                 const webhooks: Webhook[] = await this.db.getWebhooks()
 
                 if (webhooks.length === 0) {
-                    res.json({messages: [NO_WEBHOOKS]})
+                    this.handleResponse(CODE_200, null, null, res)
                 }
                 for (const webhook of webhooks) {
                     const promise: Promise<AxiosResponse> = this.makeWebkookRequest(
                         webhook,
                         payload.payload
                     ).then((response) => {
+                        const result: Result = {
+                            url: webhook.url,
+                            statusCode: response.status,
+                            message: ''
+                        }
                         if (response.status !== CODE_200) {
-                            errors.push(`Error posting to ${webhook.url}, ${response.statusText}`)
+                            result.message = `Error posting to ${webhook.url}: ${response.toString()}`
+                            errors.push(result)
                         } else {
-                            messages.push(`Success posting to ${webhook.url}`)
+                            result.message = `Success posting to ${webhook.url}`
+                            results.push(result)
                         }
                         return response
                     }).catch((error)=> {
-                        errors.push(`Error posting to ${webhook.url}, ${error}`)
+                        errors.push({
+                            url: webhook.url,
+                            statusCode: CODE_500,
+                            message: `Error posting to ${webhook.url}: ${error}`
+                        })
                         return error
                     })
 
                     promises.push(promise)
                 }
                 await Promise.all(promises)
-                this.handleTestErrors(res, errors, messages)
+                const errorCode = errors.length === 0 ? CODE_200 : CODE_500
+                this.handleResponse(errorCode, results, errors, res)
             } catch (error) {
-                this.handleError(error, res)
+                const code = error instanceof ValidationError ? CODE_400 : CODE_500
+                const result: Result = this.createResult(null, code, error.message)
+                errors.push(result)
+                this.handleResponse(code, results, errors, res)
             }
         })
-    }
-    
-    startServer(port: number) {
-        this.app.listen(port, () => console.log(`Server started listening on port ${port}`))
     }
 
     async makeWebkookRequest(
@@ -85,24 +102,30 @@ export class WebhooksApp {
         }
         return axios.post(webhook.url, data)
     }
-    
-    handleError(error: Error, res: Response) {
-        if (error instanceof ValidationError) {
-            res.status(CODE_400).json({ errors: [error.message] })
+
+    handleResponse(statusCode: number, results: Result[], errors: Result[], res: Response) {
+        const response : APIResponse = {
+            success: statusCode === CODE_200 ? true : false,
         }
-        else{
-            res.status(CODE_500).json({ errors: [error.message] })
+        if (results !== null && results !== undefined && results.length !== 0){
+            response.results = results
+        }
+        if (errors !== null && errors !== undefined && errors.length !== 0){
+            response.errors = errors
+        }
+        res.status(statusCode).json(response)
+    }
+
+    createResult(url: string, statusCode: number, message: string){
+        return {
+            url: url,
+            statusCode: statusCode,
+            message:  message
         }
     }
 
-    handleTestErrors(res: Response, errors: string[], messages: string[]) {
-        if (errors.length === 0) {
-            res.json({messages: messages})
-        } else if (messages.length === 0) {
-            res.status(CODE_404).json({ errors: errors})
-        } else {
-            res.status(CODE_404).json({ errors: errors, messages: messages})
-        }
+    startServer(port: number) {
+        this.app.listen(port, () => console.log(`Server started listening on port ${port}`))
     }
 
 }

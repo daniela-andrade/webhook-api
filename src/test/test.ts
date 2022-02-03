@@ -6,7 +6,7 @@ import bodyParser from 'body-parser'
 import express, { Application, Request, Response } from 'express'
 import { InMemoryDB } from '../db/inMemoryDB'
 import { Webhook } from '../models/webhook'
-import { URL_IS_REQUIRED, URL_IS_EMPTY, URL_FORMAT_IS_INVALID, TOKEN_IS_REQUIRED, TOKEN_IS_EMPTY, PAYLOAD_IS_REQUIRED, CODE_200, CODE_400, NO_WEBHOOKS, CODE_500, CODE_404 } from '../models/errors'
+import { CODE_200, CODE_400, CODE_500, CODE_404, Result } from '../models/errors'
 import request from 'superagent'
 
 const PORT = 9876
@@ -32,31 +32,46 @@ const VALID_TOKEN_2 = 'token2'
 const VALID_URL_FORMAT = 'http://www.urlExample.io'
 const VALID_URL_FORMAT_2 = 'http://www.urlExample2.io'
 const REACHABLE_URL = `http://localhost:${TEST_PORT}/test`
+const UNREACHABLE_URL = `http://localhost:${TEST_PORT}/not/reachable`
 const INVALID_URL = 'invalid.com'
 const VALID_PAYLOAD = ['payload']
 
 const should = chai.should()
 chai.use(chaiHttp)
 
-function shouldHaveMessage(res: request.Response, messages: string[], code: number) {
+const shouldHaveResults = (res: request.Response, results: Result[], code: number) => {
     res.should.have.status(code)
     res.body.should.be.a('object')
-    res.body.should.have.property('messages')
-    res.body.messages.should.be.a('array')
-    res.body.messages.length.should.be.eql(messages.length)
-    for (const message of messages){
-        res.body.messages.includes(message).should.eql(true)
+    res.body.should.have.property('results')
+    res.body.results.should.be.a('array')
+    res.body.results.length.should.be.eql(results.length)
+    for (let i = 0; i< results.length; i++){
+        res.body.results[i].url = results[i].url
+        res.body.results[i].statusCode = results[i].statusCode
+        res.body.results[i].message.should.be.a('string')
+        res.body.results[i].message.startsWith(results[i].message)
     }
 }
 
-const shouldHaveError = (res: request.Response, errors: string[], errorCode: number) => {
+const shouldHaveSuccessAs = (res: request.Response, success: boolean) => {
+    res.body.should.be.a('object')
+    res.body.should.have.property('success')
+    res.body.success.should.be.a('boolean')
+    res.body.success.should.be.eql(success)
+}
+
+const shouldHaveErrors = (res: request.Response, errors: Result[], errorCode: number) => {
     res.should.have.status(errorCode)
     res.body.should.be.a('object')
+    shouldHaveSuccessAs(res, false)
     res.body.should.have.property('errors')
     res.body.errors.should.be.a('array')
     res.body.errors.length.should.be.eql(errors.length)
-    for (const error of errors){
-        res.body.errors.includes(error).should.eql(true)
+    for (let i = 0; i< errors.length; i++){
+        res.body.errors[i].url = errors[i].url
+        res.body.errors[i].statusCode = errors[i].statusCode
+        res.body.errors[i].message.should.be.a('string')
+        res.body.errors[i].message.startsWith(errors[i].message)
     }
 }
 
@@ -85,10 +100,17 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(webhook)
                 .end((err, res: request.Response) => {
-                    shouldHaveError(res, [URL_IS_REQUIRED], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'URL is required'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
+                    console.log('here')
+                    
                     db.getWebhooks().then((webhooks: Webhook[]) => {
                         webhooks.should.be.a('array')
                         webhooks.length.should.be.eql(0)
+                        console.log('here2')
                         done()
                     }).catch(error=>done(error))
                 })
@@ -105,7 +127,11 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(webhook)
                 .end((err, res) => {
-                    shouldHaveError(res, [URL_IS_EMPTY], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'URL cannot be empty'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
                     done()
                 })
         })
@@ -121,7 +147,11 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(webhook)
                 .end((err, res) => {
-                    shouldHaveError(res, [URL_FORMAT_IS_INVALID], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'URL format is invalid'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
                     done()
                 })
         })
@@ -136,7 +166,11 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(webhook)
                 .end((err, res) => {
-                    shouldHaveError(res, [TOKEN_IS_REQUIRED], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'Token is required'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
                     done()
                 })
         })
@@ -152,7 +186,11 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(webhook)
                 .end((err, res) => {
-                    shouldHaveError(res, [TOKEN_IS_EMPTY], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'Token cannot be empty'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
                     done()
                 })
         })
@@ -165,7 +203,13 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(VALID_WEBHOOK)
                 .end( (err, res) => {
-                    shouldHaveMessage(res, [`Success creating webhook with url: ${VALID_URL_FORMAT} and token: ${VALID_TOKEN}`], CODE_200)
+                    const result: Result = {
+                        url: VALID_URL_FORMAT,
+                        statusCode: CODE_200,
+                        message: `Success creating webhook with url: ${VALID_URL_FORMAT} and token: ${VALID_TOKEN}`
+                    }
+                    shouldHaveResults(res, [result], CODE_200)
+                    shouldHaveSuccessAs(res, true)
                     dbStateShouldBe(1, [VALID_WEBHOOK], done)
                 })
         })
@@ -179,13 +223,26 @@ describe('api/webhook', () => {
                 .post('/api/webhooks/')
                 .send(VALID_WEBHOOK)
                 .end( (err, res) => {
-                    shouldHaveMessage(res, [`Success creating webhook with url: ${VALID_URL_FORMAT} and token: ${VALID_TOKEN}`], CODE_200)
+
+                    const result: Result = {
+                        url: VALID_URL_FORMAT,
+                        statusCode: CODE_200,
+                        message: `Success creating webhook with url: ${VALID_URL_FORMAT} and token: ${VALID_TOKEN}`
+                    }
+                    shouldHaveResults(res, [result], CODE_200)
+                    shouldHaveSuccessAs(res, true)
                     const VALID_WEBHOOK_2 = new Webhook(VALID_URL_FORMAT_2, VALID_TOKEN_2)
                     chai.request(app)
                         .post('/api/webhooks/')
                         .send(VALID_WEBHOOK_2)
                         .end( (err, res) => {
-                            shouldHaveMessage(res, [`Success creating webhook with url: ${VALID_URL_FORMAT_2} and token: ${VALID_TOKEN_2}`], CODE_200)
+                            const result: Result = {
+                                url: VALID_URL_FORMAT_2,
+                                statusCode: CODE_200,
+                                message: `Success creating webhook with url: ${VALID_URL_FORMAT_2} and token: ${VALID_TOKEN_2}`
+                            }
+                            shouldHaveResults(res, [result], CODE_200)
+                            shouldHaveSuccessAs(res, true)
                             dbStateShouldBe(2, [VALID_WEBHOOK, VALID_WEBHOOK_2], done)
                         })
                 })
@@ -204,7 +261,11 @@ describe('api/webhook/test', () => {
                 .post('/api/webhooks/test')
                 .send({})
                 .end((err, res: request.Response) => {
-                    shouldHaveError(res, [PAYLOAD_IS_REQUIRED], CODE_400)
+                    const error: Result = {
+                        statusCode: CODE_400,
+                        message: 'Payload is required'
+                    }
+                    shouldHaveErrors(res, [error], CODE_400)
                     done()
                 })
         })
@@ -219,7 +280,10 @@ describe('api/webhook/test', () => {
                 .post('/api/webhooks/test')
                 .send(payload)
                 .end((err, res: request.Response) => {
-                    shouldHaveMessage(res, [NO_WEBHOOKS], CODE_200)
+                    res.body.should.be.a('object')
+                    res.body.should.not.have.property('errors')
+                    res.body.should.not.have.property('results')
+                    shouldHaveSuccessAs(res, true)
                     done()
                 }) 
         })
@@ -231,13 +295,18 @@ describe('api/webhook/test', () => {
                 payload: VALID_PAYLOAD
             }
 
-            const VALID_WEBHOOK = new Webhook(VALID_URL_FORMAT, VALID_TOKEN)
+            const VALID_WEBHOOK = new Webhook(UNREACHABLE_URL, VALID_TOKEN)
             db.addWebhook(VALID_WEBHOOK).then((webhook) => {
                 chai.request(app)
                     .post('/api/webhooks/test')
                     .send(payload)
                     .end((err, res: request.Response) => {
-                        shouldHaveError(res, [`Error posting to ${webhook.url}, Error: getaddrinfo ENOTFOUND www.urlexample.io`], CODE_404)
+                        const error: Result = {
+                            url: UNREACHABLE_URL,
+                            statusCode: CODE_404,
+                            message: `Error posting to ${webhook.url}`
+                        }
+                        shouldHaveErrors(res, [error], CODE_500)
                         done()
                     }) 
             }).catch((error)=>done(error))
@@ -257,7 +326,13 @@ describe('api/webhook/test', () => {
                     .post('/api/webhooks/test')
                     .send(payload)
                     .end((err, res: request.Response) => {
-                        shouldHaveMessage(res, [`Success posting to ${REACHABLE_URL}`], CODE_200)
+                        const result: Result = {
+                            url: REACHABLE_URL,
+                            statusCode: CODE_200,
+                            message: `Success posting to ${REACHABLE_URL}`
+                        }
+                        shouldHaveResults(res, [result], CODE_200)
+                        shouldHaveSuccessAs(res, true)
                         done()
                     }) 
             }).catch((error)=>done(error))
