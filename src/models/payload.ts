@@ -1,5 +1,10 @@
 import { ValidationError } from './errors'
 
+/**
+ * The Payload class represents and validates the payload request parameter. 
+ * The validation can throw a ValidationError.
+*/
+
 export class Payload {
     payload: any
     constructor(payload: any) {

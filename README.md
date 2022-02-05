@@ -44,6 +44,10 @@ npm run prod
 <br/>
 <br/>
 
+## Development Considerations
+
+
+
 # API Endpoints
 
 > ### POST /api/webhooks/
@@ -72,6 +76,7 @@ Posts a webhook
 // Url param is not sent
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -85,6 +90,7 @@ or
 // Url param is empty
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -98,6 +104,7 @@ or
 // Url param is invalid
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -111,6 +118,7 @@ or
 // Url param is sent and valid, but token param is not sent
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -124,6 +132,7 @@ or
 // Url param is sent and valid, but token param is empty
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -143,7 +152,8 @@ or
         url: <URL>,
         message: 'Success creating webhook'
       }
-    ]
+    ],
+    "errors": [],
 }
 ```
 <br/>
@@ -174,6 +184,7 @@ Sends a POST request to all webhooks created with POST /api/webhooks/. The body 
 // Payload param is not sent
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         statusCode: 400,
@@ -188,6 +199,8 @@ or
 // In this case, there are no errors nor results
 {
     "success": true
+    "results": [],
+    "errors": [],
 }
 
 or
@@ -196,6 +209,7 @@ or
 // the POST request to the webhook with url <URL> fails
 {
     "success": false,
+    "results": [],
     "errors": [
       {
         url: <URL>
@@ -212,6 +226,13 @@ or
 // the POST request to the webhook with url <URL2> fails
 {
     "success": false,
+    "results": [
+      {
+        url: <URL>
+        statusCode: 200
+        message: 'Success posting to <URL>'
+      }
+    ],
     "errors": [
       {
         url: <URL2>
@@ -219,13 +240,7 @@ or
         message: <ERROR_MESSAGE>
       }
     ]
-    "results": [
-      {
-        url: <URL>
-        statusCode: 200
-        message: 'Success posting to <URL>'
-      }
-    ]
+    
 }
 
 or 
@@ -240,7 +255,8 @@ or
         statusCode: 200
         message: 'Success posting to <URL>'
       }
-    ]
+    ],
+    "errors": []
 }
 ```
 

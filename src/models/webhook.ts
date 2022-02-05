@@ -1,5 +1,12 @@
 import { ValidationError } from './errors'
 
+const urlRegex = /((([A-Za-z]{3,9}:(?:\/\/)?)(?:[-;:&=+$,\w]+@)?[A-Za-z0-9.-]+|(?:www\.|[-;:&=+$,\w]+@)[A-Za-z0-9.-]+)((?:\/[+~%/.\w\-_]*)?\??(?:[-+=&;%@.\w_]*)#?(?:[.!/\\\w]*))?)/
+
+/**
+ * The Webhook class represents and validates the url and token requests parameter.
+ * The validation can throw a ValidationError.
+*/
+
 export class Webhook {
     url: string
     token: string
@@ -18,9 +25,7 @@ export class Webhook {
         if (url.length === 0) {
             throw new ValidationError('URL cannot be empty')
         }
-        try {
-            new URL(url)
-        } catch (_) {
+        if (!urlRegex.test(url)){
             throw new ValidationError('URL format is invalid')
         }
     }
