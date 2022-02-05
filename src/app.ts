@@ -4,7 +4,7 @@ import { Webhook } from './models/webhook'
 import { Payload } from './models/payload'
 import axios, { AxiosResponse } from 'axios'
 import { DB } from './db/db'
-import { CODE_200, CODE_400, CODE_500, ValidationError } from './models/errors'
+import { CODE_OK, CODE_BAD_REQUEST, CODE_INTERNAL_ERROR, ValidationError } from './models/errors'
 import { Result, APIResponse } from './models/response'
 
 /**
@@ -13,7 +13,7 @@ import { Result, APIResponse } from './models/response'
  *         It creates a webhook
  *     POST api/webhooks/test/
  *         It triggers a POST request to every webhook stored
-*/
+ */
 export class WebhooksApp {
     db: DB
     app: Application
@@ -40,7 +40,7 @@ export class WebhooksApp {
         /**
          *  POST api/webhooks
          *  Validates and creates a webhook
-        */
+         */
         this.app.post('/api/webhooks', async (req: Request, res: Response) => {
             try {
                 const { url, token } = req.body
@@ -49,18 +49,18 @@ export class WebhooksApp {
 
                 const result: Result = {
                     url: createdWebhook.url, 
-                    statusCode: CODE_200,
+                    statusCode: CODE_OK,
                     message: `Success creating webhook with url: ${createdWebhook.url} and token: ${createdWebhook.token}`
                 }
-                this.handleResponse(/* response */ res, /* statusCode */ CODE_200, /* results */ [result], /* errors */ [])
+                this.handleResponse(/* response  */ res, /* statusCode  */ CODE_OK, /* results  */ [result], /* errors  */ [])
                 
             } catch (error) {
-                const code = error instanceof ValidationError ? CODE_400 : CODE_500
+                const code = error instanceof ValidationError ? CODE_BAD_REQUEST : CODE_INTERNAL_ERROR
                 const result: Result = {
                     statusCode: code, 
                     message: error.message
                 }
-                this.handleResponse(/* response */ res, /* statusCode */ code, /* results */ [], /* errors */ [result])
+                this.handleResponse(/* response  */ res, /* statusCode  */ code, /* results  */ [], /* errors  */ [result])
             }
         })
 
@@ -68,7 +68,7 @@ export class WebhooksApp {
          * POST api/webhooks/test
          * Validates the payload request parameter.
          * Sends a POST request to all webhooks.
-        */
+         */
         this.app.post('/api/webhooks/test', async (req: Request, res: Response) => {
             // Successfull POST requests will be added to results, unsuccessful to errors
             const results: Result[] = []
@@ -84,7 +84,7 @@ export class WebhooksApp {
                 if (webhooks.length === 0) {
                     // If there are no webhooks, we send a successful response
                     // There are no results and no errors because no POST request has been done
-                    this.handleResponse(/* response */ res, /* statusCode */ CODE_200, /* results */ [], /* errors */ [])
+                    this.handleResponse(/* response  */ res, /* statusCode  */ CODE_OK, /* results  */ [], /* errors  */ [])
                     return
                 }
 
@@ -96,7 +96,7 @@ export class WebhooksApp {
                      *         "payload": any   --> the payload received in the POST api/webhook/test request
                      *         "token": string  --> the token provided when the webhook was created
                      *     }
-                    */
+                     */
                     const promise: Promise<void> = this.makeWebkookRequest(
                         webhook,
                         validatedPayload.payload
@@ -131,16 +131,16 @@ export class WebhooksApp {
                 await Promise.all(promises)
 
                 // Send final response
-                this.handleResponse(/* response */ res, /* statusCode */ CODE_200, /* results */ results, /* errors */ errors)
+                this.handleResponse(/* response  */ res, /* statusCode  */ CODE_OK, /* results  */ results, /* errors  */ errors)
 
             } catch (error) {
-                const code = error instanceof ValidationError ? CODE_400 : CODE_500
+                const code = error instanceof ValidationError ? CODE_BAD_REQUEST : CODE_INTERNAL_ERROR
                 const result: Result = {
                     statusCode: code, 
                     message: error.message
                 }
                 errors.push(result)
-                this.handleResponse(/* response */ res, /* statusCode */ code, /* results */ results, /* errors */ errors)
+                this.handleResponse(/* response  */ res, /* statusCode  */ code, /* results  */ results, /* errors  */ errors)
             }
         })
     }
@@ -175,7 +175,7 @@ export class WebhooksApp {
      */
     handleResponse(res: Response, statusCode: number, results: Result[], errors: Result[]) {
         const response : APIResponse = {
-            success: statusCode === CODE_200 ? true : false,
+            success: statusCode === CODE_OK ? true : false,
             results: results,
             errors: errors
         }

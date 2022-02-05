@@ -8,18 +8,18 @@ import { DB } from '../db/db'
 import chai from 'chai'
 import deepEqualInAnyOrder from 'deep-equal-in-any-order'
 
-/*
-    The TestHelperApp is used to test the POST api/webhooks/test/ endpoint.
-    It has two endpoints that correspond to two different webhook urls.
-    Each of this endpoints increments a counter when the endpoint is reached.
-    This way, it's possible to verify how many times a certain endpoint has been reached.
-    Using this class, we can verify that:
-        1. The response is received by the expected endpoint
-        2. The response body received by the endpoint is as expected
-        3. The POST request is only sent once to each endpoint (verifiable with the counter)
-    It also provides a way to consistently verify the response when the endpoint is not 
-    reachable because we are in control of the unreachable url.
-*/
+/**
+ *  The TestHelperApp is used to test the POST api/webhooks/test/ endpoint.
+ *  It has two endpoints that correspond to two different webhook urls.
+ *  Each of this endpoints increments a counter when the endpoint is reached.
+ *  This way, it's possible to verify how many times a certain endpoint has been reached.
+ *  Using this class, we can verify that:
+ *      1. The response is received by the expected endpoint
+ *      2. The response body received by the endpoint is as expected
+ *      3. The POST request is only sent once to each endpoint (verifiable with the counter)
+ *  It also provides a way to consistently verify the response when the endpoint is not 
+ *  reachable because we are in control of the unreachable url.
+ */
 
 export class TestHelperApp {
     requestCount = {endpoint1: 0, endpoint2: 0}
@@ -70,14 +70,14 @@ const { expect } = chai
 
 /**
  * The following helper functions verify that the response body is as expected
-*/
+ */
 
 /**
  * Verifies the status code is as expected.
  * 
  * @param {request.Response} res The response to verify.
  * @param {number} expectedStatusCode The expected status code for the response.
-*/
+ */
 export const shouldHaveStatusCodeAs = (res: request.Response, expectedStatusCode: number) => {
     res.should.have.status(expectedStatusCode)
 }
@@ -87,7 +87,7 @@ export const shouldHaveStatusCodeAs = (res: request.Response, expectedStatusCode
  * 
  * @param {request.Response} res The response to verify.
  * @param {number} expectedSuccess The expected success flag value for the response.
-*/
+ */
 export const shouldHaveSuccessAs = (res: request.Response, expectedSuccess: boolean) => {
     res.body.should.be.a('object')
     res.body.should.have.property('success')
@@ -102,7 +102,7 @@ export const shouldHaveSuccessAs = (res: request.Response, expectedSuccess: bool
  * 
  * @param {request.Response} res The response to verify.
  * @param {Result[]} expectedResults The expected results for the response.
-*/
+ */
 export const shouldHaveResultsAs = (res: request.Response, expectedResults: Result[]) => {
     res.body.should.be.a('object')
     res.body.should.have.property('results')
@@ -118,7 +118,7 @@ export const shouldHaveResultsAs = (res: request.Response, expectedResults: Resu
  * 
  * @param {request.Response} res The response to verify.
  * @param {Result[]} expectedErrors The expected errors for the response.
-*/
+ */
 export const shouldHaveErrorsAs = (res: request.Response, expectedErrors: Result[]) => {
     res.body.should.be.a('object')
     res.body.should.have.property('errors')
@@ -134,7 +134,7 @@ export const shouldHaveErrorsAs = (res: request.Response, expectedErrors: Result
  * 
  * @param {DB} db The db to verify.
  * @param {Webhook[]} expectedEntries The webhooks expected to be in the db.
-*/
+ */
 export const shouldHaveDbStateAs = (db: DB, expectedEntries: Webhook[], done: Mocha.Done) => {
     db.getWebhooks().then((webhooks: Webhook[]) => {
         webhooks.should.be.a('array')
